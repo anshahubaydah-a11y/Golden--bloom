@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Golden Bloom</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#02030a}
+body{display:grid;place-items:center}
+canvas{display:block;width:100vw;height:100vh}
+#hint{position:fixed;bottom:18px;left:0;right:0;text-align:center;
+color:rgba(255,220,150,.45);font:11px system-ui;letter-spacing:3px;
+pointer-events:none;opacity:0;animation:fade 5s 2s forwards}
+@keyframes fade{0%,75%{opacity:0}100%{opacity:1}}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hint">GOLDEN BLOOM</div>
+<script>
+(() => {
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+let w,h,dpr=1,start=performance.now(),stars=[],dust=[];
+function resize(){
+ dpr=Math.min(devicePixelRatio||1,1.5);w=innerWidth;h=innerHeight;
+ canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);
+ ctx.setTransform(dpr,0,0,dpr,0,0);
+ stars=Array.from({length:Math.min(125,Math.floor(w*h/5000))},()=>({
+  x:Math.random()*w,y:Math.random()*h,r:.35+Math.random()*1.1,p:Math.random()*6.28,s:.5+Math.random()*1.5
+ }));
+ dust=Array.from({length:65},()=>({a:Math.random()*Math.PI*2,r:30+Math.random()*Math.min(w,h)*.42,p:Math.random()*6.28,s:.2+Math.random()*.7}));
+}
+addEventListener('resize',resize);resize();
+const ease=t=>{t=Math.max(0,Math.min(1,t));return t*t*(3-2*t)};
+function glow(x,y,r,a=1){
+ let g=ctx.createRadialGradient(x,y,0,x,y,r);
+ g.addColorStop(0,`rgba(255,205,95,${.22*a})`);
+ g.addColorStop(.35,`rgba(255,170,45,${.09*a})`);
+ g.addColorStop(1,'rgba(255,160,30,0)');
+ ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+}
+function petal(cx,cy,angle,len,width,lift,open,phase){
+ ctx.save();ctx.translate(cx,cy);ctx.rotate(angle);
+ ctx.scale(open,open);
+ const grad=ctx.createLinearGradient(0,-width, len, width);
+ grad.addColorStop(0,'rgba(255,239,167,.16)');
+ grad.addColorStop(.42,'rgba(255,190,60,.12)');
+ grad.addColorStop(1,'rgba(255,220,125,.025)');
+ ctx.beginPath();
+ ctx.moveTo(0,0);
+ ctx.bezierCurveTo(len*.18,-width*.9,len*.76,-width*.82,len,0);
+ ctx.bezierCurveTo(len*.78,width*.78,len*.2,width*.85,0,0);
+ ctx.closePath();
+ ctx.fillStyle=grad;ctx.fill();
+ ctx.shadowColor='rgba(255,198,75,.9)';ctx.shadowBlur=9;
+ ctx.strokeStyle='rgba(255,218,135,.68)';ctx.lineWidth=1.05;ctx.stroke();
+ ctx.shadowBlur=0;
+ // luminous central vein
+ ctx.beginPath();ctx.moveTo(2,0);
+ ctx.bezierCurveTo(len*.3,-lift*.12,len*.68,lift*.06,len*.98,0);
+ ctx.strokeStyle='rgba(255,239,177,.78)';ctx.lineWidth=.8;ctx.stroke();
+ // delicate branching veins
+ for(let j=1;j<=5;j++){
+  let t=j/7, x=len*t, spread=width*Math.sin(Math.PI*t)*.62;
+  for(let side of [-1,1]){
+   ctx.beginPath();ctx.moveTo(x,0);
+   ctx.quadraticCurveTo(x+len*.07,side*spread*.5,x+len*.13,side*spread);
+   ctx.strokeStyle='rgba(255,213,120,.32)';ctx.lineWidth=.55;ctx.stroke();
+  }
+ }
+ ctx.restore();
+}
+function flower(cx,cy,t){
+ const bloom=ease(Math.min(1,t*1.35));
+ // back petals, then middle and inner whorls
+ for(let i=0;i<13;i++){
+  let a=i*Math.PI*2/13-.12;
+  petal(cx,cy,a,Math.min(w,h)*.255,Math.min(w,h)*.071,35,bloom, t);
+ }
+ for(let i=0;i<11;i++){
+  let a=i*Math.PI*2/11+.16;
+  petal(cx,cy,a,Math.min(w,h)*.205,Math.min(w,h)*.057,45,ease((t-.12)*1.6),t);
+ }
+ for(let i=0;i<9;i++){
+  let a=i*Math.PI*2/9+.28;
+  petal(cx,cy,a,Math.min(w,h)*.145,Math.min(w,h)*.044,50,ease((t-.24)*1.8),t);
+ }
+ // brown sunflower seed head
+ const r=Math.min(w,h)*.034;
+ glow(cx,cy,r*5,1);
+ let g=ctx.createRadialGradient(cx-r*.3,cy-r*.35,1,cx,cy,r);
+ g.addColorStop(0,'#bd8738');g.addColorStop(.55,'#75400f');g.addColorStop(1,'#321b0a');
+ ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(cx,cy,r,r*.78,0,0,Math.PI*2);ctx.fill();
+ // deterministic seed texture
+ for(let i=0;i<115;i++){
+  let a=i*2.39996,rr=Math.sqrt((i+.5)/115)*r*.88;
+  let x=cx+Math.cos(a)*rr,y=cy+Math.sin(a)*rr*.7;
+  ctx.fillStyle=i%3===0?'#e1ad53':(i%3===1?'#3b210c':'#8b561d');
+  ctx.beginPath();ctx.arc(x,y,1,0,Math.PI*2);ctx.fill();
+ }
+}
+function draw(now){
+ let sec=(now-start)/1000,cycle=(sec%12)/12;
+ ctx.clearRect(0,0,w,h);ctx.fillStyle='#02030a';ctx.fillRect(0,0,w,h);
+ // twinkling distant stars
+ for(const s of stars){
+  let a=.25+.55*(.5+.5*Math.sin(sec*s.s+s.p));
+  ctx.fillStyle=`rgba(225,220,205,${a})`;
+  ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fill();
+ }
+ const cx=w*.5,cy=h*.49,scale=Math.min(w,h);
+ // ambient light and subtle rays
+ glow(cx,cy,scale*.48,.9);
+ ctx.save();ctx.translate(cx,cy);ctx.globalCompositeOperation='screen';
+ for(let i=0;i<54;i++){
+  let a=i*Math.PI*2/54+sec*.012;
+  let inner=scale*.07,outer=scale*(.22+.13*(.5+.5*Math.sin(i*7.1)));
+  ctx.beginPath();ctx.moveTo(Math.cos(a)*inner,Math.sin(a)*inner*.72);
+  ctx.lineTo(Math.cos(a)*outer,Math.sin(a)*outer*.72);
+  ctx.strokeStyle='rgba(255,194,82,.055)';ctx.lineWidth=.7;ctx.stroke();
+ }
+ ctx.restore();
+ // stem and leaves
+ ctx.save();ctx.strokeStyle='#52602b';ctx.lineWidth=4;ctx.lineCap='round';
+ ctx.beginPath();ctx.moveTo(cx,cy+8);ctx.bezierCurveTo(cx-7,cy+scale*.18,cx+8,cy+scale*.34,cx-2,cy+scale*.43);ctx.stroke();
+ ctx.fillStyle='#42552a';
+ ctx.beginPath();ctx.moveTo(cx-2,cy+scale*.23);ctx.quadraticCurveTo(cx-scale*.16,cy+scale*.18,cx-scale*.19,cy+scale*.25);ctx.quadraticCurveTo(cx-scale*.09,cy+scale*.28,cx-2,cy+scale*.23);ctx.fill();
+ ctx.beginPath();ctx.moveTo(cx+1,cy+scale*.31);ctx.quadraticCurveTo(cx+scale*.16,cy+scale*.26,cx+scale*.18,cy+scale*.34);ctx.quadraticCurveTo(cx+scale*.08,cy+scale*.36,cx+1,cy+scale*.31);ctx.fill();
+ ctx.restore();
+ // flower layers bloom in sequence
+ flower(cx,cy,cycle);
+ // orbiting firefly-like specks
+ for(const p of dust){
+  let a=p.a+sec*p.s*.18,r=p.r+Math.sin(sec+p.p)*4;
+  let x=cx+Math.cos(a)*r,y=cy+Math.sin(a)*r*.67;
+  let alpha=.25+.65*(.5+.5*Math.sin(sec*2+p.p));
+  ctx.fillStyle=`rgba(255,211,119,${alpha})`;
+  ctx.beginPath();ctx.arc(x,y,.7+alpha*.6,0,Math.PI*2);ctx.fill();
+ }
+ requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>
